@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MedAlarm</title>
+
+  <style>
+    body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  margin: 0;
+}
+
+.container {
+  background: white;
+  width: 380px;
+  margin: 40px auto;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  text-align: center;
+}
+
+h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+input {
+  width: 92%;
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  outline: none;
+}
+
+input:focus {
+  border-color: #667eea;
+}
+
+.add-btn {
+  background: #667eea;
+  color: white;
+  padding: 10px;
+  width: 95%;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.add-btn:hover {
+  background: #5a67d8;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  background: #f7f7f7;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 10px;
+  text-align: left;
+  transition: 0.2s;
+}
+
+li:hover {
+  transform: scale(1.02);
+}
+
+.taken {
+  background: #38a169;
+  color: white;
+  border: none;
+  padding: 6px 8px;
+  margin: 5px 3px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.missed {
+  background: #e53e3e;
+  color: white;
+  border: none;
+  padding: 6px 8px;
+  margin: 5px 3px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.delete {
+  background: #2d3748;
+  color: white;
+  border: none;
+  padding: 6px 8px;
+  margin: 5px 3px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.status {
+  font-size: 12px;
+  font-weight: bold;
+}
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 999;
+}
+
+.toast {
+  background: #333;
+  color: white;
+  padding: 12px 18px;
+  margin-top: 10px;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateX(100%);
+  transition: all 0.4s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 🔥 ADD AT END OF STYLE */
+
+.popup-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.popup-box {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+  width: 280px;
+  animation: fadeIn 0.3s ease;
+}
+
+.popup-box button {
+  margin-top: 15px;
+  padding: 8px 16px;
+  border: none;
+  background: #667eea;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h2>💊 MedAlarm</h2>
+  <p style="font-size:12px;color:gray;">
+  Never miss your medicine. Stay on schedule.
+</p>
+
+  <input id="name" placeholder="Medicine Name">
+  <input id="dosage" placeholder="Dosage">
+  <input id="time" placeholder="Time (HH:MM)">
+
+
+  <select id="ampm" style="width:95%; padding:10px; margin:5px; border-radius:8px;">
+  <option>AM</option>
+  <option>PM</option>
+</select>
+
+  <p style="font-size:12px;color:gray;">Enter time like 08:30</p>
+  <button class="add-btn" onclick="addMedicine()">Add</button>
+
+  <h3>📋 Medicine List</h3>
+  <ul id="list"></ul>
+
+  <h3>📊 History</h3>
+  <ul id="history"></ul>
+
+  <h3>📈 Adherence</h3>
+  <p id="adherence">0%</p>
+
+</div>
+<div id="toast-container"></div>
+<div id="popup" class="popup-overlay">
+  <div class="popup-box">
+    <h3>⏰ Reminder</h3>
+    <p id="popup-text"></p>
+    <button onclick="closePopup()">OK</button>
+  </div>
+</div>
+
+<script>
+
+  function showPopup(message) {
+  document.getElementById("popup-text").innerText = message;
+  document.getElementById("popup").style.display = "flex";
+}
+
+function closePopup() {
+  document.getElementById("popup").style.display = "none";
+}
+
+
+  function showToast(message) {
+  const container = document.getElementById("toast-container");
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.innerText = message;
+
+  container.appendChild(toast);
+
+  // show animation
+  setTimeout(() => toast.classList.add("show"), 100);
+
+  // remove after 3 sec
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => container.removeChild(toast), 300);
+  }, 7000);
+}
+
+  let reminded = {};
+ function checkReminders(meds) {
+  const now = new Date();
+
+  const currentHour = now.getHours().toString().padStart(2, "0");
+  const currentMinute = now.getMinutes().toString().padStart(2, "0");
+
+  let dueMeds = [];
+
+  meds.forEach(m => {
+    const [medHour, medMinute] = m.time.split(":");
+
+    const key = m._id + "_" + currentHour + ":" + currentMinute;
+
+    if (medHour === currentHour && medMinute === currentMinute) {
+      if (!reminded[key]) {
+        dueMeds.push(m.name);
+        reminded[key] = true;
+      }
+    }
+  });
+
+  if (dueMeds.length > 0) {
+    showPopup("💊 Time to take:\n" + dueMeds.join(", "));
+  }
+}
+
+async function fetchMeds() {
+  const res = await fetch("http://localhost:5000/api/medicines/123");
+  const data = await res.json();
+  checkReminders(data);
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  data.forEach(m => {
+    const li = document.createElement("li");
+
+    li.innerHTML = `
+  <b>${m.name}</b><br>
+  <span class="status">💊 ${m.dosage}</span><br>
+  <span class="status">⏰ ${m.time}</span><br>
+
+  <button class="taken" onclick="markTaken('${m._id}')">✔ Taken</button>
+  <button class="missed" onclick="markMissed('${m._id}')">✖ Missed</button>
+  <button class="delete" onclick="deleteMedicine('${m._id}')">🗑 Delete</button>
+`;
+
+    list.appendChild(li);
+  });
+}
+
+async function fetchHistory() {
+  const res = await fetch("http://localhost:5000/api/logs/123");
+  const logs = await res.json();
+
+  const medsRes = await fetch("http://localhost:5000/api/medicines/123");
+  const meds = await medsRes.json();
+
+  const history = document.getElementById("history");
+  history.innerHTML = "";
+
+  logs.forEach(log => {
+    const li = document.createElement("li");
+
+    const med = meds.find(
+      m => m._id.toString() === log.medicineId.toString()
+    );
+
+    const name = med ? med.name : "Unknown";
+
+    li.innerHTML = `
+  <b>${name}</b><br>
+  <span style="color:${log.status === 'taken' ? '#38a169' : '#e53e3e'}">
+    ${log.status === 'taken' ? '✔ Taken' : '✖ Missed'}
+  </span>
+`;
+    li.style.color = log.status === "taken" ? "green" : "red";
+
+    history.appendChild(li);
+  });
+}
+
+async function calculateAdherence() {
+  const res = await fetch("http://localhost:5000/api/logs/123");
+  const logs = await res.json();
+
+  if (logs.length === 0) {
+    document.getElementById("adherence").innerText = "No data";
+    return;
+  }
+
+  const taken = logs.filter(l => l.status === "taken").length;
+  const total = logs.length;
+
+  const percent = Math.round((taken / total) * 100);
+
+  document.getElementById("adherence").innerText = percent + "%";
+}
+
+async function addMedicine() {
+  const name = document.getElementById("name").value;
+  const dosage = document.getElementById("dosage").value;
+  let time = document.getElementById("time").value;
+const ampm = document.getElementById("ampm").value;
+
+let [hour, minute] = time.split(":");
+
+if (ampm === "PM" && hour != "12") {
+  hour = parseInt(hour) + 12;
+}
+
+if (ampm === "AM" && hour == "12") {
+  hour = "00";
+}
+
+time = hour.toString().padStart(2, "0") + ":" + minute;
+  // 🔥 ADD THIS BLOCK HERE
+  if (!name || !dosage || !time) {
+    showToast("⚠️ Please fill all fields");
+    return;
+  }
+
+  await fetch("http://localhost:5000/api/medicines/add", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      userId: "123",
+      name,
+      dosage,
+      time
+    })
+  });
+
+  // 🔥 OPTIONAL (good UX)
+  document.getElementById("name").value = "";
+  document.getElementById("dosage").value = "";
+  document.getElementById("time").value = "";
+
+  fetchMeds();
+}
+
+async function markTaken(id) {
+  await fetch("http://localhost:5000/api/logs/mark", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      userId: "123",
+      medicineId: id,
+      date: new Date(),
+      status: "taken"
+    })
+  });
+
+  refreshAll();
+}
+
+async function markMissed(id) {
+  await fetch("http://localhost:5000/api/logs/mark", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      userId: "123",
+      medicineId: id,
+      date: new Date(),
+      status: "missed"
+    })
+  });
+
+  refreshAll();
+}
+
+async function deleteMedicine(id) {
+  await fetch(`http://localhost:5000/api/medicines/delete/${id}`, {
+    method: "DELETE"
+  });
+
+  refreshAll();
+}
+
+function refreshAll() {
+  fetchMeds();
+  fetchHistory();
+  calculateAdherence();
+}
+
+// initial load
+refreshAll();
+setInterval(fetchMeds, 10000);
+
+</script>
+
+</body>
+</html>
